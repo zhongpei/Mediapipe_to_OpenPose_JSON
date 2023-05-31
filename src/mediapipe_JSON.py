@@ -37,165 +37,165 @@ from omegaconf import DictConfig, OmegaConf
 # Configuring python logger
 log = logging.getLogger(__name__)
 
+
 # Adding hydra config file to load parameters at file load
-@hydra.main(version_base = None, config_path = "conf", config_name = "config")
+@hydra.main(version_base=None, config_path="conf", config_name="config")
 def generate_MP_JSON(cfg: DictConfig):
-	"""Main function."""
-	log.debug("Debug level message")
+    """Main function."""
+    log.debug("Debug level message")
 
-	# debug print for hydra
-	print(OmegaConf.to_yaml(cfg))
+    # debug print for hydra
+    print(OmegaConf.to_yaml(cfg))
 
-	# ---- Mediapipe config ----
-	mp_drawing        = mp.solutions.drawing_utils
-	mp_holistic       = mp.solutions.holistic
-	mp_pose           = mp.solutions.pose
-	mp_drawing_styles = mp.solutions.drawing_styles
+    # ---- Mediapipe config ----
+    mp_drawing = mp.solutions.drawing_utils
+    mp_holistic = mp.solutions.holistic
+    mp_pose = mp.solutions.pose
+    mp_drawing_styles = mp.solutions.drawing_styles
 
-	# Defining the defauly Openpose JSON structure
-	# (template from openpose output)
-	json_data = {
-		"version": 1.3,
-		"people": [
-			{
-				"person_id"              : [-1],
-				"pose_keypoints_2d"      : [],
-				"face_keypoints_2d"      : [],
-				"hand_left_keypoints_2d" : [],
-				"hand_right_keypoints_2d": [],
-				"pose_keypoints_3d"      : [],
-				"face_keypoints_3d"      : [],
-				"hand_left_keypoints_3d" : [],
-				"hand_right_keypoints_3d": []
-			}
-		]
-	}
+    # Defining the defauly Openpose JSON structure
+    # (template from openpose output)
+    json_data = {
+        "version": 1.3,
+        "people": [
+            {
+                "person_id": [-1],
+                "pose_keypoints_2d": [],
+                "face_keypoints_2d": [],
+                "hand_left_keypoints_2d": [],
+                "hand_right_keypoints_2d": [],
+                "pose_keypoints_3d": [],
+                "face_keypoints_3d": [],
+                "hand_left_keypoints_3d": [],
+                "hand_right_keypoints_3d": []
+            }
+        ]
+    }
 
-	# Batch loading all images (path specified by the Hydra cfg file)
-	img_folder = []
-	for ext in ('*.png', '*.jpg', '*.jpeg'):
-		img_folder.extend(glob(join(str(cfg.files.test_img_path), ext)))
+    # Batch loading all images (path specified by the Hydra cfg file)
+    img_folder = []
+    for ext in ('*.png', '*.jpg', '*.jpeg'):
+        img_folder.extend(glob(join(str(cfg.files.test_img_path), ext)))
 
-	# Loop over all the sorted  video files in the folder
-	for img in natsorted(img_folder):
-		# Debug print file name
-		log.info(f"Processing image file: {img}")
+    # Loop over all the sorted  video files in the folder
+    for img in natsorted(img_folder):
+        # Debug print file name
+        log.info(f"Processing image file: {img}")
 
-		count = 0
-		with mp_pose.Pose(	min_detection_confidence	= 0.5,
-						min_tracking_confidence = 0.75,
-						model_complexity        = 2,
-						smooth_landmarks        = True) as pose:
-			frame = cv2.imread(img)
-			# getting image dimensions for scaling the x,y coordinates of the keypoints
-			height, width, _ = frame.shape
-			count += 1
+        count = 0
+        with mp_pose.Pose(min_detection_confidence=0.5,
+                          min_tracking_confidence=0.75,
+                          model_complexity=2,
+                          smooth_landmarks=True) as pose:
+            frame = cv2.imread(img)
+            # getting image dimensions for scaling the x,y coordinates of the keypoints
+            height, width, _ = frame.shape
+            count += 1
 
-			# ------------- MEDIAPIPE DETECTION IN FRAME -------------
-			results = pose.process(frame)
+            # ------------- MEDIAPIPE DETECTION IN FRAME -------------
+            results = pose.process(frame)
 
-			landmarks_list = results.pose_landmarks
+            landmarks_list = results.pose_landmarks
 
-			landmarks = landmarks_list.landmark
-			# 3D view of landmarks
-			# qq = mp_drawing.plot_landmarks( landmarks_list,  mp_pose.POSE_CONNECTIONS)
+            landmarks = landmarks_list.landmark
+            # 3D view of landmarks
+            # qq = mp_drawing.plot_landmarks( landmarks_list,  mp_pose.POSE_CONNECTIONS)
 
-			# Plot and save the landmarks on the image
-			mp_drawing.draw_landmarks(
-				frame,
-				results.pose_landmarks,
-				mp_pose.POSE_CONNECTIONS,
-				landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
+            # Plot and save the landmarks on the image
+            mp_drawing.draw_landmarks(
+                frame,
+                results.pose_landmarks,
+                mp_pose.POSE_CONNECTIONS,
+                landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style())
 
-			# write image to storage
-			filename=img.replace(".","_keypoints.")
-			cv2.imwrite(filename, frame)
+            # write image to storage
+            filename = img.replace(".", "_keypoints.")
+            cv2.imwrite(filename, frame)
 
-			axes_weights=[1.0, 1.0, 0.2, 1.0]
-			# scale the z dimension for all landmarks by 0.2
-			temp = [landmarks[i].z * axes_weights[2] for i in range(len(landmarks))]
-			# replace with the updated z value
-			for i in range(len(landmarks)):
-				landmarks[i].z = temp[i]
+            axes_weights = [1.0, 1.0, 0.2, 1.0]
+            # scale the z dimension for all landmarks by 0.2
+            temp = [landmarks[i].z * axes_weights[2] for i in range(len(landmarks))]
+            # replace with the updated z value
+            for i in range(len(landmarks)):
+                landmarks[i].z = temp[i]
 
-			if cfg.params.write_json == True:
-				tmp =[]
-				onlyList = []
-				list4json = []
+            if cfg.params.write_json is True:
+                tmp = []
+                onlyList = []
+                list4json = []
 
-				# converting the landmarks to a list
-				for idx, coords in enumerate(landmarks):
-					coords_dict = MessageToDict(coords)
-					# print(coords_dict)
-					qq = (coords_dict['x'], coords_dict['y'], coords_dict['visibility'])
-					tmp.append(qq)
+                # converting the landmarks to a list
+                for idx, coords in enumerate(landmarks):
+                    coords_dict = MessageToDict(coords)
+                    # print(coords_dict)
+                    qq = (coords_dict['x'], coords_dict['y'], coords_dict['visibility'])
+                    tmp.append(qq)
 
-				#  SCALING the x and y coordinates with the resolution of the image to get px corrdinates
-				for i in range(len(tmp)):
-					tmp[i] = ( int(np.multiply(tmp[i][0], width)), \
-						   int(np.multiply(tmp[i][1], height)), \
-						   tmp[i][2])
-				# Calculate the two additional joints for openpose and add them
-				# NECK KPT
-				tmp[1] = ( (tmp[11][0] - tmp[12][0]) / 2 + tmp[12][0], \
-					   (tmp[11][1] + tmp[12][1]) / 2 , \
-					   0.95 )
-				# saving the hip mid point in the list for later use
-				stash = tmp[8]
-				# HIP_MID
-				tmp.append(stash)
-				tmp[8] = ( (tmp[23][0] - tmp[24][0]) / 2 + tmp[24][0], \
-					   (tmp[23][1] + tmp[24][1]) / 2 , \
-					    0.95 )
+                #  SCALING the x and y coordinates with the resolution of the image to get px corrdinates
+                for i in range(len(tmp)):
+                    tmp[i] = (int(np.multiply(tmp[i][0], width)),
+                              int(np.multiply(tmp[i][1], height)),
+                              tmp[i][2])
+                # Calculate the two additional joints for openpose and add them
+                # NECK KPT
+                tmp[1] = ((tmp[11][0] - tmp[12][0]) / 2 + tmp[12][0],
+                          (tmp[11][1] + tmp[12][1]) / 2,
+                          0.95)
+                # saving the hip mid point in the list for later use
+                stash = tmp[8]
+                # HIP_MID
+                tmp.append(stash)
+                tmp[8] = ((tmp[23][0] - tmp[24][0]) / 2 + tmp[24][0],
+                          (tmp[23][1] + tmp[24][1]) / 2,
+                          0.95)
 
-				# Reordering list to comply to openpose format
-				# For the order table,refer to the Notion page
-				# restoring the saved hip mid point
-				mp_to_op_reorder = [0, 1, 12, 14, 16, 11, 13, 15, 8, 24, 26, 28, 23, 25, 27, 5, 2, 33, 7, 31, 31, 29, 32, 32, 30, 0, 0, 0, 0, 0, 0, 0, 0]
+                # Reordering list to comply to openpose format
+                # For the order table,refer to the Notion page
+                # restoring the saved hip mid point
+                mp_to_op_reorder = [0, 1, 12, 14, 16, 11, 13, 15, 8, 24, 26, 28, 23, 25, 27, 5, 2, 33, 7, 31, 31, 29,
+                                    32, 32, 30, 0, 0, 0, 0, 0, 0, 0, 0]
 
-				onlyList = [tmp[i] for i in mp_to_op_reorder]
+                onlyList = [tmp[i] for i in mp_to_op_reorder]
 
-				# delete the last 8 elements to conform to OpenPose joint length of 25
-				del onlyList[-8:]
+                # delete the last 8 elements to conform to OpenPose joint length of 25
+                del onlyList[-8:]
 
-				# OpenPose format requires only a list of all landmarkpoints. So converting to a simple list
-				for nums in onlyList:
-					for val in nums:
-						list4json.append(val)
+                # OpenPose format requires only a list of all landmarkpoints. So converting to a simple list
+                for nums in onlyList:
+                    for val in nums:
+                        list4json.append(val)
 
-				# Making the JSON openpose format and adding the data
-				json_data = {
-					"version": 1.3,
-					"people": [
-						{
-							"person_id"              : [-1],
-							"pose_keypoints_2d"      : list4json,
-							"face_keypoints_2d"      : [],
-							"hand_left_keypoints_2d" : [],
-							"hand_right_keypoints_2d": [],
-							"pose_keypoints_3d"      : [],
-							"face_keypoints_3d"      : [],
-							"hand_left_keypoints_3d" : [],
-							"hand_right_keypoints_3d": []
-						}
-					]
-				}
+                # Making the JSON openpose format and adding the data
+                json_data = {
+                    "version": 1.3,
+                    "people": [
+                        {
+                            "person_id": [-1],
+                            "pose_keypoints_2d": list4json,
+                            "face_keypoints_2d": [],
+                            "hand_left_keypoints_2d": [],
+                            "hand_right_keypoints_2d": [],
+                            "pose_keypoints_3d": [],
+                            "face_keypoints_3d": [],
+                            "hand_left_keypoints_3d": [],
+                            "hand_right_keypoints_3d": []
+                        }
+                    ]
+                }
 
-				json_filename = str(img) + ".json"
-				json_filename = json_filename.replace(".png","_keypoints")
-				with open(json_filename, 'w') as fl:
-					fl.write(json.dumps(json_data, indent=2, separators=(',', ': ')))
+                json_filename = str(img) + ".json"
+                json_filename = json_filename.replace(".png", "_keypoints")
+                with open(json_filename, 'w') as fl:
+                    fl.write(json.dumps(json_data, indent=2, separators=(',', ': ')))
 
-				log.info(f"Writing JSON file: {json_filename}")
-			# plt.close(fig)
-		cv2.destroyAllWindows()
-
+                log.info(f"Writing JSON file: {json_filename}")
+        # plt.close(fig)
+        cv2.destroyAllWindows()
 
 
 # ------------------------------------------------
 if __name__ == "__main__":
-	generate_MP_JSON()
-
+    generate_MP_JSON()
 
 # REFERENCES:
 # 1. https://github.com/google/mediapipe/issues/1020
